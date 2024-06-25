@@ -4,6 +4,7 @@ import threading
 import time
 import logging
 from CONFIG import DELL2_IP, PI_IP
+from utils import receive_n_bytes
 
 # Stream IMU data from laptop to robot computer
 
@@ -18,15 +19,6 @@ SIGNAL_PORT = ROS_PORT + 1
 PUBLISH_FREQ = 60.
 #####################################
 
-def _recvall(sock, n):
-    data = bytearray()
-    while len(data) < n:
-        packet = sock.recv(n - len(data))
-        if not packet:
-            return None
-        data.extend(packet)
-    return data
-
 
 class IMUStreamerClient:
     def __init__(self):
@@ -39,17 +31,17 @@ class IMUStreamerClient:
         self.start_publishing()  # publish to ros socket
 
     def get_msg_len(self):
-        msg = _recvall(self.imu_socket, 4)
+        msg = receive_n_bytes(self.imu_socket, 4)
         msg = struct.unpack('>I', msg)[0]
         self._msg_len = msg
 
-        msg = _recvall(self.imu_socket, 4)
+        msg = receive_n_bytes(self.imu_socket, 4)
         msg = struct.unpack('>I', msg)[0]
         self._obs_len = msg
         self._sema.release()
 
     def receive_data(self):
-        reading = _recvall(self.imu_socket, self._msg_len)
+        reading = receive_n_bytes(self.imu_socket, self._msg_len)
         return reading
 
     def setup_imu_socket(self):
