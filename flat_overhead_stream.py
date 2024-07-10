@@ -7,7 +7,7 @@ import cv2
 import pickle
 import numpy as np
 import logging
-from CONFIG import DELL2_IP, TRAIN_PATH, TEST_PATH
+from CONFIG import DELL2_IP, FLAT_TRAIN_PATH, FLAT_TEST_PATH, DIRECTORY_PATH
 from PIL import Image
 from utils import receive_n_bytes
 from glob import glob
@@ -22,14 +22,15 @@ HOST = DELL2_IP
 PORT = 48005
 EXAMPLE_WEIGHT = 0.5
 
-FRAME_WIDTH = 480 
-FRAME_HEIGHT = 640
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 480
 INCREASE_SATURATION = False
 RECEIVED_ALPHA = 1
 EXAMPLE_ALPHA = 1
 
 SHIFT_DELTA = 2
 SAVE_COOLDOWN = 1.0
+
 ########## ASCII BINDINGS ###########
 LEFT = 2
 RIGHT = 3
@@ -55,8 +56,8 @@ class VideoStreamerClient:
         self._image_save_dir = save_dir
         self._allow_save = allow_save
         self._pic_directories = {
-            'train': TRAIN_PATH,
-            'test': TEST_PATH
+            'train': FLAT_TRAIN_PATH,
+            'test': FLAT_TEST_PATH
         }
         self._example_images = {
             'train': [],
@@ -64,6 +65,7 @@ class VideoStreamerClient:
         }
         for type, dir_path in self._pic_directories.items():
             image_paths = sorted(glob(os.path.join(dir_path, '*.png')))
+            print(type, dir_path, image_paths)
             for img_path in image_paths:
                 img = np.asarray(Image.open(os.path.join(dir_path, img_path)))[..., ::-1]
                 self._example_images[type].append(img)
@@ -125,7 +127,7 @@ class VideoStreamerClient:
                 if self._most_recent is not None:
                    self._most_recent_received_image = image = self._most_recent
             if image is not None:
-                image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+                # image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
                 if INCREASE_SATURATION:
                     lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
                     l_channel, a, b = cv2.split(lab)
@@ -146,7 +148,12 @@ class VideoStreamerClient:
                 )
 
                 example_image_frame = received_image.copy()
-                example_image_unprocessed = self._example_images[self._pic_dir][self._pic_idx]
+                if self._pic_dir in self._example_images and 0 <= self._pic_idx < len(self._example_images[self._pic_dir]):
+                    example_image_unprocessed = self._example_images[self._pic_dir][self._pic_idx]
+                else:
+                    example_image_unprocessed = received_image.copy()
+                    logging.error(f'{self._pic_idx} out of range of directory {self._pic_dir}. Resetting index to 0.')
+                    self._pic_idx = 0
                 example_image_unprocessed = np.clip(example_image_unprocessed * EXAMPLE_ALPHA, 0, 255)
 
                 example_image_frame[

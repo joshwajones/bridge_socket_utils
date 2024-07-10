@@ -41,6 +41,13 @@ def get_safe_crop(image):
     side_len = int(1.0 * min_dim / math.sqrt(2))
     return get_center_crop(image, side_len, side_len)
 
+def rotate(image, angle, interpolation=cv2.INTER_LINEAR):
+        h, w = image.shape[:2]
+        center_x, center_y = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D((center_x, center_y), angle, 1)
+        rotated = cv2.warpAffine(image, M, (w, h), flags=interpolation)
+        return rotated
+
 
 class VideoStreamerClient:
     def __init__(self):
@@ -90,13 +97,6 @@ class VideoStreamerClient:
     def start_displaying(self):
         self.displaying()
 
-    def rotate(self, image, angle, interpolation=cv2.INTER_LINEAR):
-        h, w = image.shape[:2]
-        center_x, center_y = (w // 2, h // 2)
-        M = cv2.getRotationMatrix2D((center_x, center_y), angle, 1)
-        rotated = cv2.warpAffine(image, M, (w, h), flags=interpolation)
-        return rotated
-
     def displaying(self):
         self._sema.acquire()
         sleep_time_ms = 1
@@ -118,7 +118,7 @@ class VideoStreamerClient:
                 rotation_angle *= 180./math.pi
 
                 self._prev_angle = smooth_angle = self._alpha * rotation_angle + (1 - self._alpha) * self._prev_angle
-                image = self.rotate(image[:, ::-1, :], coeff * smooth_angle)
+                image = rotate(image[:, ::-1, :], coeff * smooth_angle)
                 display_image = np.uint8(image)
 
                 cv2.imshow("RECEIVING VIDEO", display_image)

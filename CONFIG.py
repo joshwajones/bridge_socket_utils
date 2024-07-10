@@ -9,5 +9,6 @@ DELL2_IP = DELL2_DIRECT_IP if DIRECT_CONNECTION else DELL2_RAIL_IP
 PI_IP = "169.254.3.203"
 PABRTXL2_IP = "pabrtxl1.ist.berkeley.edu"
 LOCAL = "127.0.0.1"
-TRAIN_PATH = os.path.join(DIRECTORY_PATH, "template_images/train0")
-TEST_PATH = os.path.join(DIRECTORY_PATH, "template_images/test0")
+BAG_TRAIN_PATH = os.path.join(DIRECTORY_PATH, "template_images/bag/train1_keys_rep8")
+BAG_TEST_PATH = os.path.join(DIRECTORY_PATH, "template_images/bag/test0")
+FLAT_TRAIN_PATH = FLAT_TEST_PATH =  os.path.join(DIRECTORY_PATH, "template_images/flat/align")
