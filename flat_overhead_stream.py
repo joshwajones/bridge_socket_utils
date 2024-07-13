@@ -14,6 +14,7 @@ from glob import glob
 from typing import Union, Any
 import time
 import datetime
+import os
 
 # Stream overhead camera overlaid with template picture
 
@@ -65,7 +66,6 @@ class VideoStreamerClient:
         }
         for type, dir_path in self._pic_directories.items():
             image_paths = sorted(glob(os.path.join(dir_path, '*.png')))
-            print(type, dir_path, image_paths)
             for img_path in image_paths:
                 img = np.asarray(Image.open(os.path.join(dir_path, img_path)))[..., ::-1]
                 self._example_images[type].append(img)
@@ -208,6 +208,12 @@ class VideoStreamerClient:
 
 def main():
     logging.basicConfig(format='[%(asctime)s] [check streamer] %(message)s', level=logging.INFO)
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    os.makedirs(os.path.join(dir_path, 'pid_logs'), exist_ok=True)
+    with open(
+        os.path.join(dir_path, 'pid_logs', 'overhead_pid.txt'), 'w'
+    ) as file:
+        file.write(f'{os.getpid()}')
     streamer = VideoStreamerClient(allow_save=True)
 
 

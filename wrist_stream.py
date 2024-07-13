@@ -8,6 +8,7 @@ import numpy as np
 import logging
 from CONFIG import DELL2_IP
 import math
+import os
 
 # Stream wrist camera
 
@@ -132,6 +133,12 @@ class VideoStreamerClient:
 
 def main():
     logging.basicConfig(format='[%(asctime)s] [video streamer] %(message)s', level=logging.INFO)
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    os.makedirs(os.path.join(dir_path, 'pid_logs'), exist_ok=True)
+    with open(
+        os.path.join(dir_path, 'pid_logs', 'wrist_pid.txt'), 'w'
+    ) as file:
+        file.write(f'{os.getpid()}')
     streamer = VideoStreamerClient()
 
 
