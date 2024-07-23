@@ -9,6 +9,7 @@ import logging
 from CONFIG import DELL2_IP
 import math
 import os
+from PIL import Image
 
 # Stream wrist camera
 
@@ -69,7 +70,11 @@ class VideoStreamerClient:
 
     def receive_message(self):
         encoded_message = _recvall(self.socket, self._msg_len)
-        return pickle.loads(encoded_message)
+        decoded_message = pickle.loads(encoded_message)
+
+        img, joints, angles = decoded_message
+        img = np.asarray(img)
+        return (img, joints, angles)
 
     def setup_socket(self):
         logging.info('Attempting to connect to streamer server at dell2...')

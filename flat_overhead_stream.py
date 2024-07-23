@@ -89,7 +89,9 @@ class VideoStreamerClient:
 
     def receive_message(self) -> Any:
         encoded_message = receive_n_bytes(self.socket, self._msg_len)
-        return pickle.loads(encoded_message)
+        decoded_message: Union[Image, np.ndarray] = pickle.loads(encoded_message)
+        decoded_message = np.asarray(decoded_message)
+        return decoded_message
 
     def setup_socket(self) -> bool:
         logging.info('Attempting to connect to streamer server at dell2...')
