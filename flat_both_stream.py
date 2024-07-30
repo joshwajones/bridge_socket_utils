@@ -332,7 +332,7 @@ class StreamerClient:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', '-m', choices=['eval', 'collect'], default='eval')
+    parser.add_argument('--mode', '-m', choices=['eval', 'collect'], default='collect')
     args = parser.parse_args()
     logging.basicConfig(format='[%(asctime)s] [check streamer] %(message)s', level=logging.INFO)
     streamer = StreamerClient(allow_save=True, mode=args.mode)
