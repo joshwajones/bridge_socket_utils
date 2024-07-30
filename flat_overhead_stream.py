@@ -7,7 +7,7 @@ import cv2
 import pickle
 import numpy as np
 import logging
-from CONFIG import DELL2_IP, FLAT_TRAIN_PATH, FLAT_TEST_PATH, DIRECTORY_PATH
+from CONFIG import DELL2_IP, FLAT_TRAIN_PATH, FLAT_TEST_PATH, DIRECTORY_PATH, FLAT_ALIGN_PATH
 from PIL import Image
 from utils import receive_n_bytes
 from glob import glob
@@ -57,8 +57,8 @@ class VideoStreamerClient:
         self._image_save_dir = save_dir
         self._allow_save = allow_save
         self._pic_directories = {
-            'train': FLAT_TRAIN_PATH,
-            'test': FLAT_TEST_PATH
+            'train': FLAT_ALIGN_PATH,
+            'test': FLAT_ALIGN_PATH,
         }
         self._example_images = {
             'train': [],
@@ -89,7 +89,7 @@ class VideoStreamerClient:
 
     def receive_message(self) -> Any:
         encoded_message = receive_n_bytes(self.socket, self._msg_len)
-        decoded_message: Union[Image, np.ndarray] = pickle.loads(encoded_message)
+        decoded_message: Union[Image.Image, np.ndarray] = pickle.loads(encoded_message)
         decoded_message = np.asarray(decoded_message)
         return decoded_message
 

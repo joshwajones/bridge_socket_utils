@@ -1,3 +1,4 @@
+import argparse
 import os
 import struct
 import socket
@@ -7,7 +8,7 @@ import cv2
 import pickle
 import numpy as np
 import logging
-from CONFIG import DELL2_IP, BAG_TRAIN_PATH, BAG_TEST_PATH
+from CONFIG import DELL2_IP, BAG_TRAIN_PATH, BAG_TEST_PATH, FLAT_ALIGN_PATH, FLAT_TEST_PATH, FLAT_TRAIN_PATH
 from PIL import Image
 from utils import receive_n_bytes
 from glob import glob
@@ -24,8 +25,8 @@ HOST = DELL2_IP
 OVERHEAD_PORT = 48005
 EXAMPLE_WEIGHT = 0.5
 
-OVERHEAD_FRAME_WIDTH = 480
-OVERHEAD_FRAME_HEIGHT = 640
+OVERHEAD_FRAME_WIDTH = 640
+OVERHEAD_FRAME_HEIGHT = 480
 OVERHEAD_DISPLAY_WIDTH = OVERHEAD_FRAME_WIDTH
 OVERHEAD_DISPLAY_HEIGHT = OVERHEAD_FRAME_HEIGHT
 INCREASE_SATURATION = False
@@ -50,19 +51,18 @@ RIGHT = 3
 UP = 0
 DOWN = 1
 
-TOGGLE = 116
-RESET = 114
-SAVE = 115
+TOGGLE = ord('t')
+RESET = ord('r')
+SAVE = ord('s')
 
-NUM_0 = 48
-NUM_9 = 57
+NUM_0 = ord('0')
+NUM_9 = ord('9')
 NUM_RANGE = range(NUM_0, NUM_9 + 1)
-TOGGLE_FRAMES = 109
+TOGGLE_FRAMES = ord('m')
 #####################################
 
 def process_overhead_image(image):
     image = np.asarray(image) # from jpeg
-    image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
     return cv2.resize(image, (OVERHEAD_DISPLAY_WIDTH, OVERHEAD_DISPLAY_HEIGHT))
 
 def process_wrist_image(obs):
@@ -136,7 +136,7 @@ class StreamSocket:
 
 
 class StreamerClient:
-    def __init__(self, allow_save: bool = False, save_dir: str = './temporary_templates'):
+    def __init__(self, allow_save: bool = False, save_dir: str = './temporary_templates', mode: str = None):
         self._prev_angle = 0
         self._alpha = ALPHA
         if not os.path.exists(save_dir):
@@ -145,9 +145,14 @@ class StreamerClient:
         self._last_save_time = 0
         self._image_save_dir = save_dir
         self._allow_save = allow_save
+        if mode == 'collect': 
+            train_dir = test_dir = FLAT_ALIGN_PATH
+        else: 
+            train_dir = FLAT_TRAIN_PATH
+            test_dir = FLAT_TEST_PATH
         self._pic_directories = {
-            'train': BAG_TRAIN_PATH,
-            'test': BAG_TEST_PATH
+            'train': train_dir,
+            'test': test_dir
         }
         self._example_images = {
             'train': [],
@@ -224,11 +229,15 @@ class StreamerClient:
         example_image = np.uint8(example_image_frame)
         display_image = cv2.addWeighted(example_image, EXAMPLE_WEIGHT, received_image, 1 - EXAMPLE_WEIGHT, 0)
 
-        frame = np.zeros((OVERHEAD_DISPLAY_HEIGHT, 3 * OVERHEAD_DISPLAY_WIDTH, 3))
-        frame[:, :OVERHEAD_DISPLAY_WIDTH, :] = example_image_unprocessed
-        frame[:, OVERHEAD_DISPLAY_WIDTH:2 * OVERHEAD_DISPLAY_WIDTH, :] = display_image
-        frame[:, 2 * OVERHEAD_DISPLAY_WIDTH:, :] = received_image
-        return frame
+        # frame = np.zeros((OVERHEAD_DISPLAY_HEIGHT, 3 * OVERHEAD_DISPLAY_WIDTH, 3))
+        # frame[:, :OVERHEAD_DISPLAY_WIDTH, :] = example_image_unprocessed
+        # frame[:, OVERHEAD_DISPLAY_WIDTH:2 * OVERHEAD_DISPLAY_WIDTH, :] = display_image
+        # frame[:, 2 * OVERHEAD_DISPLAY_WIDTH:, :] = received_image
+        return {
+            'template': example_image_unprocessed, 
+            'overlaid': display_image, 
+            'raw': received_image
+        }
 
     def process_and_rotate_wrist_image(self, wrist_info):
         image, joint_pos, angles_and_valid_flag = wrist_info
@@ -256,7 +265,10 @@ class StreamerClient:
         sleep_time_ms = 1
         while True:
             overhead_image = self.overhead_streamer.get_obs()
-            overhead_frame = self.process_and_overlay_overhead_image(overhead_image)
+            overhead_frames = self.process_and_overlay_overhead_image(overhead_image)
+            raw_received = overhead_frames['raw']
+            overlaid_img = overhead_frames['overlaid']
+            overhead_template = overhead_frames['template']
 
             wrist_image = self.wrist_streamer.get_obs()
             wrist_frame = self.process_and_rotate_wrist_image(wrist_image)
@@ -265,18 +277,24 @@ class StreamerClient:
 
 
             ####### add wrist #########
-            frame = np.zeros((OVERHEAD_DISPLAY_HEIGHT + WRIST_DISPLAY_HEIGHT, 3 * OVERHEAD_DISPLAY_WIDTH, 3))
-            frame[:OVERHEAD_DISPLAY_HEIGHT, :, :] = overhead_frame
-            frame[OVERHEAD_DISPLAY_HEIGHT:, :WRIST_DISPLAY_WIDTH, :] = wrist_frame
+            frame_height = max(2 * OVERHEAD_DISPLAY_HEIGHT, OVERHEAD_DISPLAY_HEIGHT + WRIST_DISPLAY_HEIGHT)
+            frame_width = max(2 * OVERHEAD_DISPLAY_WIDTH, OVERHEAD_DISPLAY_WIDTH + WRIST_DISPLAY_WIDTH)
+            frame = np.zeros((frame_height, frame_width, 3))
+            frame[:WRIST_DISPLAY_HEIGHT, :WRIST_DISPLAY_WIDTH, :] = wrist_frame 
+            frame[:OVERHEAD_DISPLAY_HEIGHT, WRIST_DISPLAY_WIDTH:WRIST_DISPLAY_WIDTH+OVERHEAD_DISPLAY_WIDTH, :] = overlaid_img
+            frame[-OVERHEAD_DISPLAY_HEIGHT:, :OVERHEAD_DISPLAY_WIDTH, :] = overhead_template
+            frame[-OVERHEAD_DISPLAY_HEIGHT:, OVERHEAD_DISPLAY_WIDTH:2*OVERHEAD_DISPLAY_WIDTH, :] = raw_received
             frame = np.uint8(frame)
+            self._mode = 'both' # temp hack
             if self._mode == 'both':
                 cv2.imshow("", frame)
             else:
-                new_height = OVERHEAD_DISPLAY_HEIGHT + WRIST_DISPLAY_HEIGHT
-                ratio = 1.0 * new_height / OVERHEAD_DISPLAY_HEIGHT
-                new_width = int(ratio * OVERHEAD_DISPLAY_WIDTH * 3)
-                single_frame = cv2.resize(overhead_frame, (new_width, new_height))
-                cv2.imshow('', np.uint8(single_frame))
+                # new_height = OVERHEAD_DISPLAY_HEIGHT + WRIST_DISPLAY_HEIGHT
+                # ratio = 1.0 * new_height / OVERHEAD_DISPLAY_HEIGHT
+                # new_width = int(ratio * OVERHEAD_DISPLAY_WIDTH * 3)
+                # single_frame = cv2.resize(overhead_frame, (new_width, new_height))
+                # cv2.imshow('', np.uint8(single_frame))
+                raise NotImplementedError
             key = cv2.waitKey(sleep_time_ms) & 0xFF
             if key == ord('q'):
                 break
@@ -313,8 +331,11 @@ class StreamerClient:
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--mode', '-m', choices=['eval', 'collect'], default='eval')
+    args = parser.parse_args()
     logging.basicConfig(format='[%(asctime)s] [check streamer] %(message)s', level=logging.INFO)
-    streamer = StreamerClient(allow_save=True)
+    streamer = StreamerClient(allow_save=True, mode=args.mode)
 
 
 ##############################################################################
